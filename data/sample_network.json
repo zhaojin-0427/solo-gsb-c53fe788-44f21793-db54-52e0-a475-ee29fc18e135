@@ -17,7 +17,11 @@
     { "id": "n11", "floor_id": "f2", "x": 30, "y": 10, "kind": "room", "name": "201室" },
     { "id": "n12", "floor_id": "f2", "x": 30, "y": -10, "kind": "room", "name": "202室" },
     { "id": "n13", "floor_id": "f1", "x": 0, "y": -10, "kind": "exit", "name": "安全出口" },
-    { "id": "n14", "floor_id": "f1", "x": 10, "y": 6, "kind": "room", "name": "活动室" }
+    { "id": "n14", "floor_id": "f1", "x": 10, "y": 6, "kind": "room", "name": "活动室" },
+    { "id": "n15", "floor_id": "f1", "x": 0, "y": -20, "kind": "junction", "name": "汇流起点" },
+    { "id": "n16", "floor_id": "f1", "x": 30, "y": -20, "kind": "junction", "name": "汇流点" },
+    { "id": "n17", "floor_id": "f1", "x": 15, "y": -30, "kind": "junction", "name": "南侧通道节点" },
+    { "id": "n18", "floor_id": "f1", "x": 40, "y": -20, "kind": "room", "name": "多功能厅" }
   ],
   "edges": [
     { "id": "e1", "from": "n1", "to": "n2", "type": "corridor", "length": 10, "seconds": 12, "width": 1.8, "slope": 0 },
@@ -47,6 +51,14 @@
     { "id": "e25", "from": "n1", "to": "n13", "type": "corridor", "length": 10, "seconds": 12, "width": 1.5, "slope": 0 },
     { "id": "e26", "from": "n13", "to": "n1", "type": "corridor", "length": 10, "seconds": 12, "width": 1.5, "slope": 0 },
     { "id": "e27", "from": "n2", "to": "n14", "type": "corridor", "length": 6, "seconds": 6, "width": 2.0, "slope": 0 },
-    { "id": "e28", "from": "n2", "to": "n14", "type": "corridor", "length": 7, "seconds": 30, "width": 0.9, "slope": 0 }
+    { "id": "e28", "from": "n2", "to": "n14", "type": "corridor", "length": 7, "seconds": 30, "width": 0.9, "slope": 0 },
+    { "id": "e29", "from": "n15", "to": "n17", "type": "corridor", "length": 10, "seconds": 5, "width": 2.0, "slope": 0 },
+    { "id": "e30", "from": "n17", "to": "n16", "type": "corridor", "length": 10, "seconds": 5, "width": 2.0, "slope": 0 },
+    { "id": "e31", "from": "n16", "to": "n18", "type": "corridor", "length": 5, "seconds": 10, "width": 2.0, "slope": 0 },
+    { "id": "e32", "from": "n18", "to": "n16", "type": "corridor", "length": 5, "seconds": 10, "width": 2.0, "slope": 0 },
+    { "id": "e33", "from": "n17", "to": "n15", "type": "corridor", "length": 10, "seconds": 5, "width": 2.0, "slope": 0 },
+    { "id": "e34", "from": "n16", "to": "n17", "type": "corridor", "length": 10, "seconds": 5, "width": 2.0, "slope": 0 },
+    { "id": "e37", "from": "n15", "to": "n16", "type": "corridor", "length": 20, "seconds": 8, "width": 2.0, "slope": 0 },
+    { "id": "e38", "from": "n16", "to": "n15", "type": "corridor", "length": 20, "seconds": 8, "width": 2.0, "slope": 0 }
   ]
 }

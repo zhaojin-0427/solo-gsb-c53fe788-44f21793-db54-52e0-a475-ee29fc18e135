@@ -217,30 +217,74 @@ class Label:
     seq: tuple[str, ...]
     path: list[dict[str, Any]] = field(default_factory=list)
 
-    def key(self) -> tuple:
-        return (self.arrival, self.distance, self.seq)
+
+def _seq_cmp(a: tuple[str, ...], b: tuple[str, ...]) -> int | None:
+    """Compare two edge-ID prefixes the way their *common extensions* will be
+    compared at the destination.
+
+    Returns -1/1 when ordering is already determined along any suffix shared
+    by both labels, 0 for identical sequences, and None when no ordering can
+    be decided yet (one sequence is a strict prefix of the other).
+
+    Plain tuple ordering must NOT be used here: ("a",) < ("a", "b"), yet after
+    extending both with ("c") the prefix order flips to ("a", "c") >
+    ("a", "b", "c"). Keeping prefix labels incomparable is the only safe
+    choice while paths can still diverge downstream.
+    """
+    n = min(len(a), len(b))
+    for i in range(n):
+        if a[i] != b[i]:
+            return -1 if a[i] < b[i] else 1
+    # All shared positions equal.
+    if len(a) == len(b):
+        return 0
+    return None
 
 
 def _dominates(a: Label, b: Label) -> bool:
-    """Return True if label a dominates label b (a is no worse in all
-    dimensions and strictly better in at least one)."""
+    """Return True if every possible continuation of b is dominated by the
+    same continuation of a (it is safe to discard b at this intermediate
+    node).
+
+    Both labels sit at the same node, so they face the same downstream
+    network, and the earliest-departure function is FIFO in arrival time.
+    After sharing any suffix, the arrival gap may therefore shrink (waiting
+    at a closure can force the earlier label to idle until both can pass) but
+    never reverse. Hence a continuation can only become *worse for a than
+    for b* through waiting, which acts by equalising arrival times. A label
+    may be discarded only when it survives that worst case:
+
+      * strictly earlier arrival AND strictly shorter distance: waiting can
+        equalise arrival, but a still wins on distance (and vice versa is not
+        guaranteed, so a single strict dimension is NOT sufficient);
+      * strictly earlier arrival and equal distance with a smaller edge-ID
+        prefix;
+      * equal arrival with strictly shorter distance (no further waiting can
+        reverse distance);
+      * equal arrival, equal distance, smaller edge-ID prefix.
+
+    The edge-ID prefix test is handled by _seq_cmp, which returns None when
+    the order could flip after extending with a shared suffix (strict-prefix
+    case); such label pairs are both retained.
+    """
+    if a.arrival < b.arrival:
+        if a.distance > b.distance:
+            return False  # waiting could tie arrival; b then wins distance
+        if a.distance < b.distance:
+            return True
+        return _seq_cmp(a.seq, b.seq) == -1
     if a.arrival > b.arrival:
         return False
+    # Equal arrival.
+    if a.distance < b.distance:
+        return True
     if a.distance > b.distance:
         return False
-    if a.arrival < b.arrival or a.distance < b.distance:
-        return True
-    # Equal arrival and distance: lexicographic edge-ID sequence decides.
-    # Sequences of different lengths are only produced through zero-cost
-    # cycles; keep both (the search bounds walk length) rather than using
-    # prefix ordering, which is not preserved under extension.
-    if len(a.seq) == len(b.seq) and a.seq < b.seq:
-        return True
-    return False
+    return _seq_cmp(a.seq, b.seq) == -1
 
 
 def _add_label(labels: list[Label], new: Label) -> bool:
-    """Add new label to labels, removing dominated ones. Return True if added."""
+    """Add new to labels, removing dominated ones. Return True if added."""
     for lab in labels:
         if lab.arrival == new.arrival and lab.distance == new.distance and lab.seq == new.seq:
             return False  # identical label
@@ -251,6 +295,23 @@ def _add_label(labels: list[Label], new: Label) -> bool:
     kept.append(new)
     labels[:] = kept
     return True
+
+
+def _cannot_beat(lab: Label, best: Label) -> bool:
+    """At the destination, whether lab can never win against best.
+
+    Sequences are final here (no further extension), so the adjudication is
+    plain tuple order: arrival, then total distance, then the complete
+    lexicographic edge-ID sequence including prefix ordering."""
+    if lab.arrival > best.arrival:
+        return True
+    if lab.arrival < best.arrival:
+        return False
+    if lab.distance > best.distance:
+        return True
+    if lab.distance < best.distance:
+        return False
+    return lab.seq >= best.seq
 
 
 def _edge_static_ok(edata: dict[str, Any], min_width: float, max_slope: float) -> bool:
@@ -332,16 +393,29 @@ def find_route(
     max_steps = G.number_of_edges()
 
     while heap:
-        arr, dist, seq, _, lab = heapq.heappop(heap)
+        _, _, _, _, lab = heapq.heappop(heap)
         # Skip if this label was dominated after being pushed.
         if lab not in labels.get(lab.node, []):
             continue
         # Prune: if we already have a best and this label can't beat it.
-        if best is not None and lab.key() >= best.key():
-            continue
+        # Tuple ordering on (arrival, distance, seq) is only safe at the
+        # destination (complete sequences); at intermediate nodes seq values
+        # are prefixes whose tuple order is not preserved under extension, so
+        # pruning there must go through the sound dominance test.
+        if best is not None:
+            if lab.node == end:
+                if _cannot_beat(lab, best):
+                    continue
+            elif lab.arrival > best.arrival or (
+                lab.arrival == best.arrival and lab.distance > best.distance
+            ):
+                # Edge traversal times and waits are non-negative: a label
+                # arriving later (or equal-late with longer distance) at an
+                # intermediate node cannot overtake a settled best at end.
+                continue
 
         if lab.node == end:
-            if best is None or lab.key() < best.key():
+            if best is None or not _cannot_beat(lab, best):
                 best = lab
             continue
 
