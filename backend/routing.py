@@ -222,19 +222,31 @@ class Label:
 
 
 def _dominates(a: Label, b: Label) -> bool:
-    """Return True if label a dominates label b (a is no worse in all
-    dimensions and strictly better in at least one)."""
+    """Return True if label a dominates label b (a can never lose to b at
+    the destination under the final-arrival / total-length / edge-ID
+    adjudication order).
+
+    Waiting is allowed, so an earlier arrival can always mimic a later
+    one, and a strictly shorter accumulated distance can never be caught
+    up — either one makes a strictly better regardless of the edge-ID
+    sequence. When the distance ties, however, a downstream closure can
+    force both walks to wait for the same release time, erasing any
+    arrival advantage and leaving the edge-ID sequence as the decider.
+    Domination then requires the sequence order to survive every common
+    extension: equal length and not lexicographically larger. Sequences
+    of different lengths are only produced through zero-cost cycles; keep
+    both (the search bounds walk length) rather than using prefix
+    ordering, which is not preserved under extension.
+    """
     if a.arrival > b.arrival:
         return False
     if a.distance > b.distance:
         return False
-    if a.arrival < b.arrival or a.distance < b.distance:
+    if a.distance < b.distance:
         return True
-    # Equal arrival and distance: lexicographic edge-ID sequence decides.
-    # Sequences of different lengths are only produced through zero-cost
-    # cycles; keep both (the search bounds walk length) rather than using
-    # prefix ordering, which is not preserved under extension.
-    if len(a.seq) == len(b.seq) and a.seq < b.seq:
+    # Equal distance: the edge-ID sequence may still decide the final
+    # ranking once closures equalize the remaining travel times.
+    if len(a.seq) == len(b.seq) and a.seq <= b.seq:
         return True
     return False
 
@@ -336,11 +348,17 @@ def find_route(
         # Skip if this label was dominated after being pushed.
         if lab not in labels.get(lab.node, []):
             continue
-        # Prune: if we already have a best and this label can't beat it.
+        # Prune against the incumbent best route. The adjudication order
+        # is (final arrival, total length, edge-ID sequence); the label
+        # key grows monotonically along every extension, so once a label
+        # is no better than the incumbent none of its extensions can
+        # still win at the destination.
         if best is not None and lab.key() >= best.key():
             continue
 
         if lab.node == end:
+            # Labels are popped in nondecreasing key order, so the first
+            # destination label settled is the adjudication winner.
             if best is None or lab.key() < best.key():
                 best = lab
             continue
